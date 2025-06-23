@@ -54,10 +54,11 @@ public class AwsGameStatePersistor : MonoBehaviour
     public string tableName = "games_state";
     public Boolean SortNumericValues = true;
     public int MaxItemsToFetch = int.MaxValue;
+    public Boolean UniqueItemsPerComputer = false;
 
     private string accessKey = "your aws access key goes here";
     private string secretKey = "your aws secret key goes here";
-    private string computerId;
+    private string computerId = "";
 
 
     /// <summary>
@@ -65,16 +66,21 @@ public class AwsGameStatePersistor : MonoBehaviour
     /// </summary>
     void Start()
     {
-
-        this.computerId = PlayerPrefs.GetString("computer_id", null);
-        if(this.computerId == null || this.computerId.Length == 0)
+        if (this.UniqueItemsPerComputer)
         {
-            this.computerId = this.GenerateComputerId();
-            PlayerPrefs.SetString("computer_id", this.computerId);
-            PlayerPrefs.Save();
-        }
+            this.computerId = PlayerPrefs.GetString("computer_id", null);
+            if (this.computerId == null || this.computerId.Length == 0)
+            {
+                this.computerId = this.GenerateComputerId();
+                PlayerPrefs.SetString("computer_id", this.computerId);
+                PlayerPrefs.Save();
+            }
 
-        Debug.Log("Computer Id = " + this.computerId);
+            Debug.Log("Computer Id = " + this.computerId);
+        } else
+        {
+            Debug.Log("Unique items per computer is not needed");
+        }
  
     }
 
@@ -102,12 +108,9 @@ public class AwsGameStatePersistor : MonoBehaviour
             var State = DeserializeSimple(data);
             if (this.SortNumericValues)
             {
-                State = StripAndSortByValue(State, this.computerId);
-            } else
-            {
-                State = StripPrefix(State, this.computerId);
-            }
-
+                State = StripAndSortByValue(State);
+            } 
+            
             Debug.Log("Received item: " + data);
             Debug.Log("this.State length = " + State.Count);
             onSuccess?.Invoke(State);
@@ -302,13 +305,22 @@ public class AwsGameStatePersistor : MonoBehaviour
             var parts = line.Split(new[] { ',' }, 2); // Only split at the first comma
             if (parts.Length == 2)
             {
-                
+
+                StateItemId key = null;
                 string keyStr = parts[0].Trim();
-                if (keyStr.Length < 7)
+
+                if (this.UniqueItemsPerComputer)
                 {
-                    keyStr = "000000" + keyStr;
+                    if (keyStr.Length < 7)
+                    {
+                        keyStr = "000000" + keyStr;
+                    }
+                    key = new StateItemId(keyStr.Substring(0, 6), keyStr.Substring(6));
+                } else
+                {
+                    key = new StateItemId("", keyStr);
                 }
-                StateItemId key = new StateItemId(keyStr.Substring(0, 6), keyStr.Substring(6));
+
                 dict[key] = parts[1].Trim();
                 counter++;
                 if(counter > this.MaxItemsToFetch)
@@ -346,20 +358,14 @@ public class AwsGameStatePersistor : MonoBehaviour
         return s.PadLeft(6, '0');
     }
 
-    private Dictionary<StateItemId, string> StripAndSortByValue(Dictionary<StateItemId, string> original, string prefix)
-    {
-        return original        
-        .OrderByDescending( kvp =>
-        {
-            int number;
-            return int.TryParse(kvp.Value, out number) ? number : 0;
-        }) // or long.Parse / double.Parse if needed
-        .ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
-    }
-
-    private Dictionary<StateItemId, string> StripPrefix(Dictionary<StateItemId, string> original, string prefix)
+    private Dictionary<StateItemId, string> StripAndSortByValue(Dictionary<StateItemId, string> original)
     {
         return original
+        .OrderByDescending(kvp =>
+       {
+           int number;
+           return int.TryParse(kvp.Value, out number) ? number : 0;
+       }) // or long.Parse / double.Parse if needed
         .ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
     }
 
@@ -373,5 +379,9 @@ public class AwsGameStatePersistor : MonoBehaviour
         .ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
     }
 
+    public StateItemId CreateStateItem(string key)
+    {
+        return new StateItemId(this.computerId, key);
+    }
 
 }
