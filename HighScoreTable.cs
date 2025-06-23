@@ -12,6 +12,7 @@ public class HighScoreTable : MonoBehaviour
 
     private GameObject table;
 
+
     void Start()
     {
         AwsGameStatePersistor gp = this.GetComponent<AwsGameStatePersistor>();
