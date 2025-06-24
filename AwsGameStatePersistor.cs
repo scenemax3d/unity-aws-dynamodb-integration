@@ -111,6 +111,13 @@ public class AwsGameStatePersistor : MonoBehaviour
                 State = StripAndSortByValue(State);
             } 
             
+            if (this.MaxItemsToFetch < int.MaxValue)
+            {
+                State = State
+                .Take(this.MaxItemsToFetch)
+                .ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
+            }
+
             Debug.Log("Received item: " + data);
             Debug.Log("this.State length = " + State.Count);
             onSuccess?.Invoke(State);
@@ -298,7 +305,6 @@ public class AwsGameStatePersistor : MonoBehaviour
     {
         var dict = new Dictionary<StateItemId, string>();
         var lines = input.Split('\n');
-        int counter = 0;
 
         foreach (var line in lines)
         {
@@ -322,11 +328,7 @@ public class AwsGameStatePersistor : MonoBehaviour
                 }
 
                 dict[key] = parts[1].Trim();
-                counter++;
-                if(counter > this.MaxItemsToFetch)
-                {
-                    break;
-                }
+                
             }
         }
 
